@@ -15,17 +15,17 @@ Usage - sources:
                                                      'rtsp://example.com/media.mp4'  # RTSP, RTMP, HTTP stream
 
 Usage - formats:
-    $ python detect.py --weights yolov5s.pt                 # PyTorch
-                                 yolov5s.torchscript        # TorchScript
-                                 yolov5s.onnx               # ONNX Runtime or OpenCV DNN with --dnn
-                                 yolov5s_openvino_model     # OpenVINO
-                                 yolov5s.engine             # TensorRT
-                                 yolov5s.mlpackage          # CoreML (macOS-only)
-                                 yolov5s_saved_model        # TensorFlow SavedModel
-                                 yolov5s.pb                 # TensorFlow GraphDef
-                                 yolov5s.tflite             # TensorFlow Lite
-                                 yolov5s_edgetpu.tflite     # TensorFlow Edge TPU
-                                 yolov5s_paddle_model       # PaddlePaddle
+    $ python detect.py --weights yolov5s.pt                               # PyTorch
+                                 yolov5s.torchscript                     # TorchScript
+                                 yolov5s.onnx                            # ONNX Runtime or OpenCV DNN with --dnn
+                                 yolov5s_openvino_model                  # OpenVINO
+                                 yolov5s.engine                          # TensorRT
+                                 yolov5s.mlpackage                       # CoreML (macOS-only)
+                                 yolov5s_saved_model                     # TensorFlow SavedModel
+                                 yolov5s.pb                              # TensorFlow GraphDef
+                                 yolov5s.tflite                          # TensorFlow Lite
+                                 yolov5s_edgetpu.tflite                  # TensorFlow Edge TPU
+                                 yolov5s_paddle_model                    # PaddlePaddle
 """
 
 import argparse
@@ -64,6 +64,7 @@ from utils.general import (
     xyxy2xywh,
 )
 from utils.torch_utils import select_device, smart_inference_mode
+from changedetection import ChangeDetection #added 
 
 
 @smart_inference_mode()
@@ -164,6 +165,7 @@ def run(
     device = select_device(device)
     model = DetectMultiBackend(weights, device=device, dnn=dnn, data=data, fp16=half)
     stride, names, pt = model.stride, model.names, model.pt
+    cd = ChangeDetection(names) #added by kiokahn, 20220608 
     imgsz = check_img_size(imgsz, s=stride)  # check image size
 
     # Dataloader
@@ -227,6 +229,7 @@ def run(
 
         # Process predictions
         for i, det in enumerate(pred):  # per image
+            detected = [0 for i in range(len(names))] #added by kiokahn, 20220608 
             seen += 1
             if webcam:  # batch_size >= 1
                 p, im0, frame = path[i], im0s[i].copy(), dataset.count
@@ -252,6 +255,7 @@ def run(
 
                 # Write results
                 for *xyxy, conf, cls in reversed(det):
+                    detected[int(cls)] = 1 #added by kiokahn, 20220608 
                     c = int(cls)  # integer class
                     label = names[c] if hide_conf else f"{names[c]}"
                     confidence = float(conf)
@@ -306,6 +310,8 @@ def run(
                         save_path = str(Path(save_path).with_suffix(".mp4"))  # force *.mp4 suffix on results videos
                         vid_writer[i] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
                     vid_writer[i].write(im0)
+
+            cd.add(names, detected, save_dir,im0) #added by kiokahn, 20220608 
 
         # Print time (inference-only)
         LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1e3:.1f}ms")
